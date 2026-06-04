@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eco-Route: Trafik & Hava Kalitesi Simülasyonu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+:root {
+    --bg-color: #0f172a;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --glass-bg: rgba(30, 41, 59, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    --primary: #3b82f6;
+    --primary-hover: #2563eb;
+    --secondary: #10b981;
+    --danger: #ef4444;
+    
+    /* AQI Colors */
+    --aqi-good: #10b981;
+    --aqi-moderate: #f59e0b;
+    --aqi-unhealthy: #ef4444;
+    --aqi-hazardous: #8b5cf6;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-x: hidden;
+    position: relative;
+    padding: 2rem 0;
+}
+
+/* Dynamic Background */
+.background-animation {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    background: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.1), transparent 25%);
+    animation: pulse 15s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.1); }
+}
+
+.app-container {
+    width: 100%;
+    max-width: 1200px;
+    padding: 0 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Glassmorphism Utilities */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 1rem;
+    box-shadow: var(--glass-shadow);
+    padding: 1.5rem;
+}
+
+.full-width {
+    width: 100%;
+}
+
+/* Header */
+.header {
+    text-align: center;
+    padding: 2rem;
+}
+
+.header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(to right, #60a5fa, #34d399);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+}
+
+.header p {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+}
+
+/* Main Content Stacking */
+.main-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Results Panel Grid (Circle + Chart) */
+.results-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 2rem;
+    align-items: center;
+}
+
+@media (max-width: 900px) {
+    .results-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.aqi-display {
+    text-align: center;
+    padding: 1rem;
+    background: rgba(0,0,0,0.2);
+    border-radius: 1rem;
+}
+
+.aqi-display h2 {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+}
+
+.aqi-circle {
+    width: 150px;
+    height: 150px;
+    margin: 0 auto;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border: 4px solid var(--text-muted);
+    transition: all 0.5s ease;
+}
+
+.aqi-number {
+    font-size: 3rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.aqi-status {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-top: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.chart-container {
+    height: 250px;
+    width: 100%;
+    position: relative;
+}
+
+/* Controls Panel */
+.controls-panel h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 0.5rem;
+}
+
+.controls-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+}
+
+@media (max-width: 900px) {
+    .controls-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .controls-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.control-header {
+    margin-bottom: 0.5rem;
+}
+
+.control-header label {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.input-row {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.num-input {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: var(--text-main);
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    width: 80px;
+    font-family: inherit;
+    text-align: center;
+    font-weight: 600;
+}
+
+.num-input:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+/* Custom Range Slider */
+input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    background: transparent;
+}
+
+input[type=range]:focus {
+    outline: none;
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 8px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+input[type=range]::-webkit-slider-thumb {
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    margin-top: -6px;
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+    transition: transform 0.1s;
+}
+
+input[type=range]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.control-group small {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-top: 0.4rem;
+}
+
+/* Actions */
+.actions {
+    margin-top: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-primary, .btn-secondary, .btn-danger {
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.btn-primary { background: var(--primary); min-width: 250px; }
+.btn-primary:hover { background: var(--primary-hover); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
+
+.btn-secondary { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); }
+.btn-secondary:hover { background: rgba(255,255,255,0.2); }
+
+.btn-danger { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+.btn-danger:hover { background: rgba(239, 68, 68, 0.4); }
+
+.action-hint {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+/* History Panel */
+.history-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 1rem;
+}
+
+.history-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.history-actions button {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+
+.table-container {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+th, td {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+th {
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+}
+
+tbody tr:hover {
+    background: rgba(255,255,255,0.02);
+}
+
+.empty-row td {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 2rem;
+}
+
+.status-badge {
+    padding: 0.2rem 0.6rem;
+    border-radius: 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+    </style>
+</head>
+<body>
+    <div class="background-animation"></div>
+    
+    <div class="app-container">
+        <header class="glass-panel header">
+            <h1>Eco-Route</h1>
+            <p>Çoklu Araç Sınıfı ve Hava Kalitesi (AQI) Analiz Sistemi</p>
+            <p style="margin-top: 1rem; font-size: 0.95rem; max-width: 800px; margin-left: auto; margin-right: auto; line-height: 1.5; color: var(--text-main);">
+                <strong>Projenin Amacı:</strong> Bu simülasyon, araç tiplerinin yoğunluğuna bağlı olarak trafik kaynaklı hava kirliliğini ve emisyon değişimlerini modellemektedir. Çevresel faktörlerin (rüzgar, binalar, yeşil alanlar) ve trafik akışının (bekleme süresi) hava kalitesi (AQI) üzerindeki etkisini anlık olarak analiz etmenizi sağlar.
+            </p>
+        </header>
+
+        <main class="main-content">
+            <!-- Üst Panel: Sonuçlar ve Grafik -->
+            <section class="glass-panel results-panel full-width">
+                <div class="results-grid">
+                    <div class="aqi-display">
+                        <h2>Sonuç (AQI)</h2>
+                        <div class="aqi-circle" id="aqiCircle">
+                            <span id="aqiValue" class="aqi-number">-</span>
+                            <span id="aqiStatus" class="aqi-status">Bekleniyor</span>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="aqiChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Orta Panel: Kontroller -->
+            <section class="glass-panel controls-panel full-width">
+                <h2>Senaryo Parametreleri</h2>
+                
+                <div class="controls-grid">
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label for="carsInput">Standart Araç (Fosil)</label>
+                        </div>
+                        <div class="input-row">
+                            <input type="range" id="carsSlider" min="0" max="1000" value="300" step="10">
+                            <input type="number" id="carsInput" min="0" max="1000" value="300" class="num-input">
+                            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Araç/Saat</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label for="evInput">Elektrikli Araç (EV)</label>
+                        </div>
+                        <div class="input-row">
+                            <input type="range" id="evSlider" min="0" max="1000" value="150" step="10">
+                            <input type="number" id="evInput" min="0" max="1000" value="150" class="num-input">
+                            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Araç/Saat</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label for="waitInput">Işık Bekleme Süresi (sn)</label>
+                        </div>
+                        <div class="input-row">
+                            <input type="range" id="waitSlider" min="0" max="60" value="30" step="1">
+                            <input type="number" id="waitInput" min="0" max="60" value="30" class="num-input">
+                            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">sn/Araç</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label for="windInput">Rüzgar Hızı (km/s)</label>
+                        </div>
+                        <div class="input-row">
+                            <input type="range" id="windSlider" min="0" max="50" value="15" step="1">
+                            <input type="number" id="windInput" min="0" max="50" value="15" class="num-input">
+                            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">km/s</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label for="greenInput">Yeşil Alan Oranı (%)</label>
+                        </div>
+                        <div class="input-row">
+                            <input type="range" id="greenSlider" min="0" max="100" value="20" step="1">
+                            <input type="number" id="greenInput" min="0" max="100" value="20" class="num-input">
+                            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">%</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <div class="control-header">
+                            <label for="buildingInput">Bina Kat Sayısı</label>
+                        </div>
+                        <div class="input-row">
+                            <input type="range" id="buildingSlider" min="1" max="50" value="5" step="1">
+                            <input type="number" id="buildingInput" min="1" max="50" value="5" class="num-input">
+                            <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">Kat</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="parameter-legend glass-panel" style="margin-top: 1.5rem; padding: 1rem; font-size: 0.85rem; color: var(--text-muted); background: rgba(0,0,0,0.2);">
+                    <h3 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text-main);">Parametre Açıklamaları</h3>
+                    <ul style="list-style-type: none; padding-left: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0.5rem;">
+                        <li><strong>Standart Araç:</strong> Egzoz ve lastik emisyonu kaynağı.</li>
+                        <li><strong>Elektrikli Araç:</strong> Sıfır egzoz, sadece lastik (ağır) kaynaklı partikül.</li>
+                        <li><strong>Bekleme Süresi:</strong> Dakika başına rölanti (Egzozu artırır).</li>
+                        <li><strong>Rüzgar Hızı:</strong> Kirliliği havadan temizler (dağıtır).</li>
+                        <li><strong>Yeşil Alan:</strong> Ağaçlar partikülleri filtreler.</li>
+                        <li><strong>Bina Kat Sayısı:</strong> Yüksek binalar hava akımını engeller.</li>
+                    </ul>
+                </div>
+                
+                <div class="actions" style="flex-direction: row; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                    <button id="runManualBtn" class="btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                        Manuel Senaryo Çalıştır
+                    </button>
+                    <button id="runAutoBtn" class="btn-primary" style="background: var(--secondary);">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+                        Otomatik Üret (100+)
+                    </button>
+                </div>
+                <small class="action-hint" style="text-align: center; display: block; margin-top: 0.5rem;">Manuel parametreleri kaydedebilir veya sistemi rastgele verilerle 100 kere çalıştırabilirsiniz.</small>
+                
+                <div style="margin-top: 1.5rem; text-align: center; font-size: 0.75rem; color: var(--text-muted); opacity: 0.6; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem; max-width: 800px; margin-left: auto; margin-right: auto;">
+                    * <strong>Veri Kaynakları:</strong> Simülasyonda kullanılan araç emisyon katsayıları (PM2.5) <em>EPA MOVES3 (2023) Modeli</em> ve <em>EEA EMEP Hava Kirletici Emisyon Envanteri Kılavuzu</em> referans alınarak ölçeklendirilmiştir. Çevresel filtreleme ve dağılım metrikleri <em>Dünya Sağlık Örgütü (WHO)</em> kentsel hava kalitesi raporlarına dayanmaktadır.
+                </div>
+            </section>
+        </main>
+
+        <!-- Alt Panel: Geçmiş Tabloları -->
+        <div style="display: flex; flex-direction: column; gap: 1.5rem; width: 100%;">
+            <!-- Manuel Geçmiş -->
+            <section class="glass-panel history-panel full-width">
+                <div class="history-header">
+                    <h2>Manuel Senaryolar Geçmişi</h2>
+                    <div class="history-actions">
+                        <button id="clearManualBtn" class="btn-danger">Geçmişi Temizle</button>
+                        <button id="downloadManualCsvBtn" class="btn-secondary">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            CSV İndir
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table id="manualHistoryTable">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Standart</th>
+                                <th>Elektrikli</th>
+                                <th>Bekleme (sn)</th>
+                                <th>Rüzgar (km/s)</th>
+                                <th>Yeşil Alan (%)</th>
+                                <th>Bina (Kat)</th>
+                                <th>AQI</th>
+                                <th>Durum</th>
+                                <th>Önerilen Güzergah</th>
+                            </tr>
+                        </thead>
+                        <tbody id="manualHistoryTableBody">
+                            <tr class="empty-row"><td colspan="10">Henüz manuel çalıştırılan bir senaryo bulunmuyor.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Otomatik Geçmiş -->
+            <section class="glass-panel history-panel full-width">
+                <div class="history-header">
+                    <h2>Otomatik Senaryolar Geçmişi</h2>
+                    <div class="history-actions">
+                        <button id="clearAutoBtn" class="btn-danger">Geçmişi Temizle</button>
+                        <button id="downloadAutoCsvBtn" class="btn-secondary">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            CSV İndir
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                    <table id="autoHistoryTable">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Standart</th>
+                                <th>Elektrikli</th>
+                                <th>Bekleme (sn)</th>
+                                <th>Rüzgar (km/s)</th>
+                                <th>Yeşil Alan (%)</th>
+                                <th>Bina (Kat)</th>
+                                <th>AQI</th>
+                                <th>Durum</th>
+                                <th>Önerilen Güzergah</th>
+                            </tr>
+                        </thead>
+                        <tbody id="autoHistoryTableBody">
+                            <tr class="empty-row"><td colspan="10">Henüz otomatik çalıştırılan bir senaryo bulunmuyor.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+// --- UI Elements ---
+const inputs = {
+    carsSlider: document.getElementById('carsSlider'),
+    carsNum: document.getElementById('carsInput'),
+    evSlider: document.getElementById('evSlider'),
+    evNum: document.getElementById('evInput'),
+    waitSlider: document.getElementById('waitSlider'),
+    waitNum: document.getElementById('waitInput'),
+    windSlider: document.getElementById('windSlider'),
+    windNum: document.getElementById('windInput'),
+    greenSlider: document.getElementById('greenSlider'),
+    greenNum: document.getElementById('greenInput'),
+    buildingSlider: document.getElementById('buildingSlider'),
+    buildingNum: document.getElementById('buildingInput')
+};
+
+const aqiElements = {
+    circle: document.getElementById('aqiCircle'),
+    value: document.getElementById('aqiValue'),
+    status: document.getElementById('aqiStatus')
+};
+
+const runManualBtn = document.getElementById('runManualBtn');
+const runAutoBtn = document.getElementById('runAutoBtn');
+const clearManualBtn = document.getElementById('clearManualBtn');
+const clearAutoBtn = document.getElementById('clearAutoBtn');
+const downloadManualBtn = document.getElementById('downloadManualCsvBtn');
+const downloadAutoBtn = document.getElementById('downloadAutoCsvBtn');
+const manualTableBody = document.getElementById('manualHistoryTableBody');
+const autoTableBody = document.getElementById('autoHistoryTableBody');
+
+// --- State and Data ---
+let manualRecordedData = [];
+let autoRecordedData = [];
+let manualRunCount = 0;
+let autoRunCount = 0;
+
+// --- Chart.js Initialization ---
+const ctx = document.getElementById('aqiChart').getContext('2d');
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.font.family = 'Inter';
+
+const aqiChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: [],
+        datasets: [{
+            label: 'Hesaplanan AQI',
+            data: [],
+            backgroundColor: [],
+            borderRadius: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 300,
+                grid: { color: 'rgba(255, 255, 255, 0.05)' }
+            },
+            x: {
+                grid: { display: false }
+            }
+        },
+        plugins: {
+            legend: { display: false }
+        }
+    }
+});
+
+// --- Input Synchronization ---
+function syncInputs(slider, numInput) {
+    slider.addEventListener('input', () => numInput.value = slider.value);
+    numInput.addEventListener('input', () => {
+        let val = parseInt(numInput.value) || 0;
+        let min = parseInt(numInput.min);
+        let max = parseInt(numInput.max);
+        if (val < min) val = min;
+        if (val > max) val = max;
+        slider.value = val;
+    });
+}
+
+syncInputs(inputs.carsSlider, inputs.carsNum);
+syncInputs(inputs.evSlider, inputs.evNum);
+syncInputs(inputs.waitSlider, inputs.waitNum);
+syncInputs(inputs.windSlider, inputs.windNum);
+syncInputs(inputs.greenSlider, inputs.greenNum);
+syncInputs(inputs.buildingSlider, inputs.buildingNum);
+
+// --- Mathematical Model ---
+function calculateAQI(stdCars, evCars, waitTime, windSpeed, greenRatio, buildingFloors) {
+    // 1. Production (PM2.5)
+    const movingRatio = (60 - waitTime) / 60;
+    const idlingRatio = waitTime / 60;
+    
+    // PM2.5 Emisyon Katsayıları
+    const stdEmission = (stdCars * movingRatio * 10) + (stdCars * idlingRatio * 5);
+    const evEmission = (evCars * movingRatio * 12) + (evCars * idlingRatio * 0);
+    
+    const totalPm25Production = stdEmission + evEmission;
+    const concentrationAdded = totalPm25Production / 1000;
+
+    // 2. Removal (Dispersion & Filtration)
+    let windDispersion = (windSpeed / 50) * 0.80; // Max 80% removal
+    // Binalar rüzgarın dağıtıcı etkisini azaltır (kat başına %1.5 kayıp, max 50 kat = %75 kayıp)
+    windDispersion = windDispersion * (1 - (buildingFloors * 0.015));
+    
+    const treeFiltration = (greenRatio / 100) * 0.20; // Max 20% filtration
+    const baseSettling = 0.02; // Gravity settling
+    
+    const totalRemovalRate = Math.max(0.01, windDispersion + treeFiltration + baseSettling);
+
+    // 3. Equilibrium AQI
+    const equilibriumPM25 = concentrationAdded / totalRemovalRate;
+    let calculatedAqi = Math.round(equilibriumPM25 * 4);
+    
+    if (calculatedAqi > 500) calculatedAqi = 500;
+    
+    return {
+        aqi: calculatedAqi,
+        std: stdCars,
+        ev: evCars,
+        wait: waitTime,
+        wind: windSpeed,
+        green: greenRatio,
+        building: buildingFloors
+    };
+}
+
+// --- UI Updates ---
+function getAqiColor(aqi) {
+    if (aqi <= 50) return { color: '#10b981', text: 'İyi' }; 
+    if (aqi <= 100) return { color: '#f59e0b', text: 'Orta' }; 
+    if (aqi <= 150) return { color: '#f97316', text: 'Hassas' }; 
+    if (aqi <= 200) return { color: '#ef4444', text: 'Kötü' }; 
+    if (aqi <= 300) return { color: '#8b5cf6', text: 'Çok Kötü' }; 
+    return { color: '#7f1d1d', text: 'Tehlikeli' }; 
+}
+
+function getBestRoute(aqi) {
+    if (aqi <= 50) return 'Sahil Yolu (Hızlı Akış)';
+    if (aqi <= 100) return 'Şehir Merkezi Bulvarı';
+    if (aqi <= 150) return '1. Çevre Yolu';
+    if (aqi <= 200) return '2. Çevre Yolu';
+    if (aqi <= 300) return 'Kuzey Otoyolu (Uzak Geçiş)';
+    return 'Şehir Dışı Alternatif Yönlendirme';
+}
+
+function processResult(result, isAuto, currentRunCount) {
+    const aqiInfo = getAqiColor(result.aqi);
+    const bestRoute = getBestRoute(result.aqi);
+
+    // 1. Update Top Results Circle (only update circle with latest result)
+    aqiElements.value.textContent = result.aqi;
+    aqiElements.status.textContent = aqiInfo.text;
+    aqiElements.circle.style.borderColor = aqiInfo.color;
+    aqiElements.circle.style.boxShadow = `0 0 20px ${aqiInfo.color}40`;
+
+    // 2. Add to History Array for CSV
+    const timestamp = new Date().toLocaleTimeString();
+    const state = {
+        Senaryo_No: isAuto ? 'Oto-' + currentRunCount : 'Man-' + currentRunCount,
+        Zaman: timestamp,
+        Standart_Arac: result.std,
+        Elektrikli_Arac: result.ev,
+        Bekleme_Suresi_sn: result.wait,
+        Ruzgar_Hizi_kms: result.wind,
+        Yesil_Alan_Yuzdesi: result.green,
+        Bina_Kat_Sayisi: result.building,
+        Hesaplanan_AQI: result.aqi,
+        Durum: aqiInfo.text,
+        Onerilen_Guzergah: bestRoute
+    };
+    
+    if (isAuto) {
+        autoRecordedData.push(state);
+    } else {
+        manualRecordedData.push(state);
+    }
+
+    // 3. Update Chart
+    aqiChart.data.labels.push(isAuto ? 'Oto-' + currentRunCount : 'Man-' + currentRunCount);
+    aqiChart.data.datasets[0].data.push(result.aqi);
+    aqiChart.data.datasets[0].backgroundColor.push(aqiInfo.color);
+
+    // 4. Update HTML Table
+    const tableBody = isAuto ? autoTableBody : manualTableBody;
+    
+    if (currentRunCount === 1) {
+        tableBody.innerHTML = '';
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td>#${isAuto ? 'Oto-' + currentRunCount : currentRunCount}</td>
+        <td>${result.std}</td>
+        <td>${result.ev}</td>
+        <td>${result.wait}</td>
+        <td>${result.wind}</td>
+        <td>%${result.green}</td>
+        <td>${result.building}</td>
+        <td><strong>${result.aqi}</strong></td>
+        <td><span class="status-badge" style="background-color: ${aqiInfo.color}20; color: ${aqiInfo.color}">${aqiInfo.text}</span></td>
+        <td><strong>${bestRoute}</strong></td>
+    `;
+    
+    tableBody.insertBefore(tr, tableBody.firstChild);
+}
+
+function runManualSimulation() {
+    manualRunCount++;
+    const stdCars = parseInt(inputs.carsNum.value);
+    const evCars = parseInt(inputs.evNum.value);
+    const waitTime = parseInt(inputs.waitNum.value);
+    const windSpeed = parseInt(inputs.windNum.value);
+    const greenRatio = parseInt(inputs.greenNum.value);
+    const buildingFloors = parseInt(inputs.buildingNum.value);
+
+    const result = calculateAQI(stdCars, evCars, waitTime, windSpeed, greenRatio, buildingFloors);
+    processResult(result, false, manualRunCount);
+    aqiChart.update();
+}
+
+function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function runAutoSimulation() {
+    runAutoBtn.disabled = true;
+    runAutoBtn.innerHTML = 'Üretiliyor...';
+    
+    // Generate 100 random runs
+    for (let i = 0; i < 100; i++) {
+        autoRunCount++;
+        // Use limits from the inputs
+        const stdCars = getRandomInt(0, 1000);
+        const evCars = getRandomInt(0, 1000);
+        const waitTime = getRandomInt(0, 60);
+        const windSpeed = getRandomInt(0, 50);
+        const greenRatio = getRandomInt(0, 100);
+        const buildingFloors = getRandomInt(1, 50);
+
+        const result = calculateAQI(stdCars, evCars, waitTime, windSpeed, greenRatio, buildingFloors);
+        processResult(result, true, autoRunCount);
+    }
+    
+    aqiChart.update();
+    
+    runAutoBtn.disabled = false;
+    runAutoBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+        Otomatik Üret (100+)
+    `;
+}
+
+function clearManualHistory() {
+    manualRunCount = 0;
+    manualRecordedData = [];
+    manualTableBody.innerHTML = `<tr class="empty-row"><td colspan="10">Manuel geçmiş temizlendi.</td></tr>`;
+    rebuildChartFromData();
+}
+
+function clearAutoHistory() {
+    autoRunCount = 0;
+    autoRecordedData = [];
+    autoTableBody.innerHTML = `<tr class="empty-row"><td colspan="10">Otomatik geçmiş temizlendi.</td></tr>`;
+    rebuildChartFromData();
+}
+
+function rebuildChartFromData() {
+    aqiChart.data.labels = [];
+    aqiChart.data.datasets[0].data = [];
+    aqiChart.data.datasets[0].backgroundColor = [];
+    
+    // Re-add manual
+    manualRecordedData.forEach(item => {
+        aqiChart.data.labels.push(item.Senaryo_No);
+        aqiChart.data.datasets[0].data.push(item.Hesaplanan_AQI);
+        aqiChart.data.datasets[0].backgroundColor.push(getAqiColor(item.Hesaplanan_AQI).color);
+    });
+    
+    // Re-add auto
+    autoRecordedData.forEach(item => {
+        aqiChart.data.labels.push(item.Senaryo_No);
+        aqiChart.data.datasets[0].data.push(item.Hesaplanan_AQI);
+        aqiChart.data.datasets[0].backgroundColor.push(getAqiColor(item.Hesaplanan_AQI).color);
+    });
+    
+    aqiChart.update();
+
+    if (manualRecordedData.length === 0 && autoRecordedData.length === 0) {
+        aqiElements.value.textContent = '-';
+        aqiElements.status.textContent = 'Bekleniyor';
+        aqiElements.circle.style.borderColor = '#94a3b8';
+        aqiElements.circle.style.boxShadow = 'none';
+    }
+}
+
+// --- CSV Export Logic ---
+function generateCSV(dataArray, filename) {
+    if (dataArray.length === 0) {
+        alert("İndirilecek veri yok.");
+        return;
+    }
+
+    const headers = Object.keys(dataArray[0]);
+    let csvContent = headers.join(',') + '\n';
+    
+    dataArray.forEach(row => {
+        const values = headers.map(header => row[header]);
+        csvContent += values.join(',') + '\n';
+    });
+
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function downloadManualCSV() {
+    generateCSV(manualRecordedData, `eco_route_manuel_${new Date().getTime()}.csv`);
+}
+
+function downloadAutoCSV() {
+    generateCSV(autoRecordedData, `eco_route_otomatik_${new Date().getTime()}.csv`);
+}
+
+// --- Event Listeners ---
+runManualBtn.addEventListener('click', runManualSimulation);
+runAutoBtn.addEventListener('click', runAutoSimulation);
+clearManualBtn.addEventListener('click', clearManualHistory);
+clearAutoBtn.addEventListener('click', clearAutoHistory);
+downloadManualBtn.addEventListener('click', downloadManualCSV);
+downloadAutoBtn.addEventListener('click', downloadAutoCSV);
+    </script>
+</body>
+</html>
